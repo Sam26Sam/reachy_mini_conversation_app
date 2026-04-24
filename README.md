@@ -436,3 +436,18 @@ OPENAI_API_KEY=ollama
 ```
 Any app using the standard OpenAI Python SDK will automatically route to Ollama locally.
 
+
+### Gérer son fork — commandes essentielles
+
+**Sauvegarder des modifications :**
+```bash
+git add <fichier modifié>
+git commit -m "description de ce que tu as changé"
+git push
+```
+
+**Récupérer les mises à jour officielles de Pollen Robotics sans écraser son travail :**
+```bash
+git fetch https://github.com/pollen-robotics/reachy_mini_conversation_app.git main
+git merge FETCH_HEAD
+```
