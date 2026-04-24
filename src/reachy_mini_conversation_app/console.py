@@ -25,6 +25,7 @@ from reachy_mini import ReachyMini
 from reachy_mini.media.media_manager import MediaBackend
 from reachy_mini_conversation_app.config import (
     GEMINI_BACKEND,
+    LOCAL_BACKEND,
     LOCKED_PROFILE,
     OPENAI_BACKEND,
     config,
@@ -150,7 +151,11 @@ class LocalStream:
     def _active_backend(self) -> str:
         """Return the backend family of the currently running handler."""
         handler_name = type(self.handler).__name__.lower()
-        return GEMINI_BACKEND if "gemini" in handler_name else OPENAI_BACKEND
+        if "gemini" in handler_name:
+            return GEMINI_BACKEND
+        if "local" in handler_name:
+            return LOCAL_BACKEND
+        return OPENAI_BACKEND
 
     @staticmethod
     def _has_key(value: Optional[str]) -> bool:
@@ -159,6 +164,8 @@ class LocalStream:
 
     def _has_required_key(self, backend: str) -> bool:
         """Return whether the requested backend has its required credential."""
+        if backend == LOCAL_BACKEND:
+            return True  # local backend needs no API key
         if backend == GEMINI_BACKEND:
             return self._has_key(config.GEMINI_API_KEY)
         return self._has_key(config.OPENAI_API_KEY)
@@ -373,7 +380,7 @@ class LocalStream:
         @self._settings_app.post("/backend_config")
         def _set_backend(payload: BackendPayload) -> JSONResponse:
             backend = payload.backend.strip().lower()
-            if backend not in {OPENAI_BACKEND, GEMINI_BACKEND}:
+            if backend not in {OPENAI_BACKEND, GEMINI_BACKEND, LOCAL_BACKEND}:
                 return JSONResponse({"ok": False, "error": "invalid_backend"}, status_code=400)
 
             api_key = (payload.api_key or "").strip()

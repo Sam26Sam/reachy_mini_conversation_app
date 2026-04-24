@@ -46,7 +46,7 @@ def run(
     """Run the Reachy Mini conversation app."""
     # Putting these dependencies here makes the dashboard faster to load when the conversation app is installed
     from reachy_mini_conversation_app.moves import MovementManager
-    from reachy_mini_conversation_app.config import config, is_gemini_model, refresh_runtime_config_from_env
+    from reachy_mini_conversation_app.config import config, is_gemini_model, is_local_backend, refresh_runtime_config_from_env
     from reachy_mini_conversation_app.startup_settings import (
         StartupSettings,
         load_startup_settings_into_runtime,
@@ -151,7 +151,17 @@ def run(
     )
     logger.debug(f"Chatbot avatar images: {chatbot.avatar_images}")
 
-    if is_gemini_model():
+    if is_local_backend():
+        from reachy_mini_conversation_app.local_backend import LocalHandler
+
+        logger.info("Using local backend (faster-whisper + Ollama + Kokoro-ONNX)")
+        handler = LocalHandler(
+            deps,
+            gradio_mode=args.gradio,
+            instance_path=instance_path,
+            startup_voice=startup_settings.voice,
+        )  # type: ignore[assignment]
+    elif is_gemini_model():
         from reachy_mini_conversation_app.gemini_live import GeminiLiveHandler
 
         logger.info("Using Gemini Live handler for model: %s", config.MODEL_NAME)
@@ -176,12 +186,18 @@ def run(
 
     if args.gradio:
         uses_gemini_backend = is_gemini_model()
+        uses_local_backend = is_local_backend()
         api_key_textbox = gr.Textbox(
-            label="GEMINI_API_KEY" if uses_gemini_backend else "OPENAI API Key",
+            label="(no API key needed for local backend)" if uses_local_backend else (
+                "GEMINI_API_KEY" if uses_gemini_backend else "OPENAI API Key"
+            ),
             type="password",
-            value=(os.getenv("GEMINI_API_KEY") if uses_gemini_backend else os.getenv("OPENAI_API_KEY"))
-            if not get_space()
-            else "",
+            interactive=not uses_local_backend,
+            value="" if uses_local_backend else (
+                (os.getenv("GEMINI_API_KEY") if uses_gemini_backend else os.getenv("OPENAI_API_KEY"))
+                if not get_space()
+                else ""
+            ),
         )
 
         from reachy_mini_conversation_app.gradio_personality import PersonalityUI

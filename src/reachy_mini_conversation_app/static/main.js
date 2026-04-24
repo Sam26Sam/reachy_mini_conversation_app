@@ -1,5 +1,6 @@
 const OPENAI_BACKEND = "openai";
 const GEMINI_BACKEND = "gemini";
+const LOCAL_BACKEND = "local";
 const BACKEND_META = {
   [OPENAI_BACKEND]: {
     label: "OpenAI Realtime",
@@ -27,13 +28,28 @@ const BACKEND_META = {
     requiredCredentialsCopy: "Gemini Live requires your own GEMINI_API_KEY before you can switch.",
     note: "OpenAI Realtime uses the distributed OpenAI key. Gemini Live needs your own GEMINI_API_KEY.",
   },
+  [LOCAL_BACKEND]: {
+    label: "Local (offline)",
+    formTitle: "Local backend",
+    inputLabel: "",
+    placeholder: "",
+    saveButton: "Save",
+    changeButton: "Change",
+    readyTitle: "Local backend ready",
+    readyCopy: "Running fully offline — no API key needed. Configure models in the dashboard.",
+    formCopy: "No API key required for the local backend.",
+    requiredCredentialsCopy: "No API key required for the local backend.",
+    note: "Local backend runs fully offline using Whisper + Ollama + Kokoro. No API key needed.",
+  },
 };
 
 function backendHasCredentials(status, backend) {
+  if (backend === LOCAL_BACKEND) return true;
   return backend === GEMINI_BACKEND ? !!status.has_gemini_key : !!status.has_openai_key;
 }
 
 function backendCanProceed(status, backend) {
+  if (backend === LOCAL_BACKEND) return true;
   if (backend === GEMINI_BACKEND) {
     return status.can_proceed_with_gemini !== undefined
       ? !!status.can_proceed_with_gemini
@@ -291,7 +307,9 @@ async function init() {
   let editingCredentials = false;
 
   function setSelectedBackend(backend) {
-    selectedBackend = backend === GEMINI_BACKEND ? GEMINI_BACKEND : OPENAI_BACKEND;
+    if (backend === GEMINI_BACKEND) selectedBackend = GEMINI_BACKEND;
+    else if (backend === LOCAL_BACKEND) selectedBackend = LOCAL_BACKEND;
+    else selectedBackend = OPENAI_BACKEND;
     backendInputs.forEach((radio) => {
       radio.checked = radio.value === selectedBackend;
     });
@@ -321,8 +339,10 @@ async function init() {
     saveBtn.textContent = meta.saveButton;
     changeKeyBtn.textContent = meta.changeButton;
 
+    const isLocal = selectedBackend === LOCAL_BACKEND;
     show(configuredPanel, canProceedWithSelectedBackend && !editingCredentials);
-    show(formPanel, editingCredentials || !canProceedWithSelectedBackend);
+    show(formPanel, !isLocal && (editingCredentials || !canProceedWithSelectedBackend));
+    if (input) input.closest(".input-row") && (input.closest(".input-row").hidden = isLocal);
     show(
       backendSaveBtn,
       canProceedWithSelectedBackend && !selectedMatchesPersisted,
@@ -404,6 +424,17 @@ async function init() {
   });
 
   saveBtn.addEventListener("click", async () => {
+    if (selectedBackend === LOCAL_BACKEND) {
+      setStatusMessage(statusEl, "Saving...");
+      try {
+        await saveBackendConfig(LOCAL_BACKEND, "");
+        setStatusMessage(statusEl, "Saved. Reloading…", "ok");
+        window.location.reload();
+      } catch (e) {
+        setStatusMessage(statusEl, "Failed to save. Please try again.", "error");
+      }
+      return;
+    }
     const key = input.value.trim();
     if (!key) {
       setStatusMessage(statusEl, "Please enter a valid key.", "warn");
@@ -443,7 +474,7 @@ async function init() {
     }
   });
 
-  if (!(st.can_proceed ?? backendCanProceed(st, st.backend_provider || OPENAI_BACKEND)) || st.requires_restart) {
+  if (!(st.can_proceed ?? backendCanProceed(st, st.backend_provider || OPENAI_BACKEND)) || (st.requires_restart && st.backend_provider !== LOCAL_BACKEND)) {
     show(loading, false);
     return;
   }

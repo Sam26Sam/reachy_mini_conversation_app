@@ -71,14 +71,17 @@ GEMINI_AVAILABLE_VOICES: list[str] = [
 
 OPENAI_BACKEND = "openai"
 GEMINI_BACKEND = "gemini"
+LOCAL_BACKEND = "local"
 DEFAULT_BACKEND_PROVIDER = OPENAI_BACKEND
 DEFAULT_MODEL_NAME_BY_BACKEND = {
     OPENAI_BACKEND: "gpt-realtime",
     GEMINI_BACKEND: "gemini-3.1-flash-live-preview",
+    LOCAL_BACKEND: "local",
 }
 DEFAULT_VOICE_BY_BACKEND = {
     OPENAI_BACKEND: "cedar",
     GEMINI_BACKEND: "Kore",
+    LOCAL_BACKEND: "af_heart",
 }
 
 logger = logging.getLogger(__name__)
@@ -107,6 +110,8 @@ def _resolve_model_name(
 ) -> str:
     """Return a model name that matches the selected backend provider."""
     normalized_backend = _normalize_backend_provider(backend_provider, model_name)
+    if normalized_backend == LOCAL_BACKEND:
+        return DEFAULT_MODEL_NAME_BY_BACKEND[LOCAL_BACKEND]
     candidate = (model_name or "").strip()
     if candidate:
         if normalized_backend == GEMINI_BACKEND and _is_gemini_model_name(candidate):
@@ -329,21 +334,30 @@ def get_model_name_for_backend(backend: str) -> str:
 
 def get_available_voices_for_backend(backend: str | None = None) -> list[str]:
     """Return the curated voice list for a backend selector value."""
+    from reachy_mini_conversation_app.local_backend import LOCAL_AVAILABLE_VOICES
+
     normalized_backend = get_backend_choice() if backend is None else _normalize_backend_provider(backend)
     if normalized_backend == GEMINI_BACKEND:
         return list(GEMINI_AVAILABLE_VOICES)
+    if normalized_backend == LOCAL_BACKEND:
+        return list(LOCAL_AVAILABLE_VOICES)
     return list(AVAILABLE_VOICES)
 
 
 def get_default_voice_for_backend(backend: str | None = None) -> str:
     """Return the default voice for a backend selector value."""
     normalized_backend = get_backend_choice() if backend is None else _normalize_backend_provider(backend)
-    return DEFAULT_VOICE_BY_BACKEND[normalized_backend]
+    return DEFAULT_VOICE_BY_BACKEND.get(normalized_backend, DEFAULT_VOICE_BY_BACKEND[OPENAI_BACKEND])
 
 
 def is_gemini_model() -> bool:
-    """Return True if the configured MODEL_NAME is a Gemini Live model."""
+    """Return True if the configured BACKEND_PROVIDER is Gemini."""
     return get_backend_choice() == GEMINI_BACKEND
+
+
+def is_local_backend() -> bool:
+    """Return True if the configured BACKEND_PROVIDER is the local backend."""
+    return get_backend_choice() == LOCAL_BACKEND
 
 
 def set_custom_profile(profile: str | None) -> None:

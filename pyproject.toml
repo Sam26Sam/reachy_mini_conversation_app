@@ -58,6 +58,11 @@ all_vision = [
   "opencv-python>=4.13.0.92",
   "mediapipe==0.10.14",
 ]
+local_backend = [
+  "faster-whisper>=1.0.0",
+  "ollama>=0.4.0",
+  "kokoro-onnx>=0.4.0",
+]
 
 [dependency-groups]
 dev = [

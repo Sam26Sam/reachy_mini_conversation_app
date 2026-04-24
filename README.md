@@ -345,3 +345,94 @@ Quick start:
 ## License
 
 Apache 2.0
+
+---
+
+## Sam's Custom Setup — Local Backend & Dashboard
+
+> This fork adds a fully offline-capable local backend, a browser dashboard, usage tracking, and an app store. Everything runs on a MacBook (Apple Silicon) without any cloud API.
+
+### What was added
+
+| File | Description |
+|------|-------------|
+| `dashboard.py` | Persistent browser dashboard (port 7860) — config, model manager, usage stats, app store, app launcher |
+| `src/…/local_backend.py` | Full local pipeline: faster-whisper STT → Ollama LLM → Kokoro-ONNX or ElevenLabs TTS |
+| `src/…/usage_tracker.py` | SQLite usage tracker — logs STT/LLM/TTS/VLM consumption per model |
+| `config_reachy.py` | Standalone config UI (port 7861) |
+| `~/reachy/start_reachy.sh` | Shell launcher: starts Ollama if needed, then launches the app |
+
+#### Modified files
+- `src/…/config.py` — added `LOCAL_BACKEND` constant and helpers
+- `src/…/main.py` — wires `LocalHandler` when `BACKEND_PROVIDER=local`
+- `src/…/console.py` — fixes headless mode for local backend (no API key required)
+- `src/…/static/main.js` — adds `LOCAL_BACKEND` support in the settings UI
+- `pyproject.toml` — adds `[local_backend]` optional dependency group
+- `.env.example` — documents all local backend env vars
+
+### Dashboard
+
+Auto-starts at Mac login via a LaunchAgent. Always available at **http://localhost:7860**.
+
+Tabs:
+- **⚙️ Configuration** — select backend (local/OpenAI/Gemini), STT model, LLM model, TTS voice, vision
+- **📦 Modèles Ollama** — browse a catalog of 19 models, download with live progress, see installed models
+- **📊 Consommation** — per-model usage stats (tokens, audio seconds, chars, latency) stored in `~/.reachy/usage.db`
+- **🛒 App Store** — install any HuggingFace Space app; auto-injects `OPENAI_BASE_URL→Ollama` for local compatibility
+- **🚀 Lancement** — start/stop the conversation app (runs on port 7861), live logs
+
+### Local backend setup
+
+```bash
+# Install local backend dependencies
+pip install faster-whisper ollama kokoro-onnx
+
+# Pull a model (or use the dashboard)
+ollama pull llama3.2:3b
+
+# Configure
+cp .env.example .env
+# Edit .env: set BACKEND_PROVIDER=local, LOCAL_LLM_MODEL=llama3.2:3b, etc.
+```
+
+Key env vars:
+```
+BACKEND_PROVIDER=local
+LOCAL_STT_MODEL=medium          # tiny / base / small / medium / large-v3
+LOCAL_LLM_MODEL=llama3.2:3b    # any Ollama model
+LOCAL_TTS_PROVIDER=kokoro       # kokoro (free) or elevenlabs (paid)
+LOCAL_TTS_VOICE=af_heart
+LOCAL_TTS_LANG=en-us
+USE_LOCAL_VISION=1              # enable camera via SmolVLM2
+LOCAL_VISION_MODEL=HuggingFaceTB/SmolVLM2-2.2B-Instruct
+```
+
+### Auto-start on login (macOS)
+
+```bash
+# The LaunchAgent is already installed at:
+# ~/Library/LaunchAgents/com.reachy.dashboard.plist
+# It starts dashboard.py automatically on login.
+
+# To reload manually:
+launchctl kickstart -k gui/$(id -u)/com.reachy.dashboard
+```
+
+### Shell aliases
+
+Add to `~/.zshrc` (already done on this machine):
+```bash
+alias reachy='cd ~/reachy/reachy_mini_conversation_app && source .venv/bin/activate'
+alias reachy-start='bash ~/reachy/start_reachy.sh'
+alias reachy-dashboard='cd ~/reachy/reachy_mini_conversation_app && source .venv/bin/activate && python dashboard.py'
+```
+
+### App compatibility with local models
+
+When launching apps from the App Store, the dashboard injects:
+```
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_API_KEY=ollama
+```
+Any app using the standard OpenAI Python SDK will automatically route to Ollama locally.
+
